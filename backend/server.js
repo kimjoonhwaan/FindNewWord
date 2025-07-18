@@ -27,28 +27,58 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// 디버깅 엔드포인트 (환경변수 확인)
+app.get('/api/debug', (req, res) => {
+  res.json({
+    environment: {
+      NODE_ENV: process.env.NODE_ENV,
+      PORT: process.env.PORT,
+      hasOpenAIKey: !!process.env.OPENAI_API_KEY,
+      openAIKeyLength: process.env.OPENAI_API_KEY?.length || 0,
+      openAIKeyPrefix: process.env.OPENAI_API_KEY?.substring(0, 7) || 'none'
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
 // 단어 검색 API
 app.post('/api/words/search', async (req, res) => {
   const { word } = req.body;
+  
+  console.log('단어 검색 요청:', { word, timestamp: new Date().toISOString() });
 
   if (!word) {
     return res.status(400).json({ error: '단어를 입력해주세요.' });
   }
 
   try {
+    // OpenAI API 키 확인
+    if (!process.env.OPENAI_API_KEY) {
+      console.error('OpenAI API 키가 설정되지 않았습니다.');
+      return res.status(500).json({ error: 'OpenAI API 키가 설정되지 않았습니다.' });
+    }
+
+    console.log('OpenAI API 키 확인됨');
+
     // 기존에 검색된 단어인지 확인
     const existingWord = await new Promise((resolve, reject) => {
       db.get(
         'SELECT * FROM words WHERE word = ?',
         [word],
         (err, row) => {
-          if (err) reject(err);
-          else resolve(row);
+          if (err) {
+            console.error('데이터베이스 조회 오류:', err);
+            reject(err);
+          } else {
+            console.log('기존 단어 검색 결과:', row ? '발견됨' : '없음');
+            resolve(row);
+          }
         }
       );
     });
 
     if (existingWord) {
+      console.log('기존 단어 반환:', existingWord.word);
       // 기존 단어가 있으면 그대로 반환
       return res.json({
         id: existingWord.id,
@@ -58,17 +88,25 @@ app.post('/api/words/search', async (req, res) => {
       });
     }
 
+    console.log('OpenAI API 호출 시작:', word);
     // 새로운 단어면 OpenAI API로 의미를 가져옴
     const meaning = await getWordMeaning(word);
+    console.log('OpenAI API 응답 받음, 길이:', meaning.length);
 
     // 데이터베이스에 저장
+    console.log('데이터베이스 저장 시작');
     const result = await new Promise((resolve, reject) => {
       db.run(
         'INSERT INTO words (word, meaning) VALUES (?, ?)',
         [word, meaning],
         function(err) {
-          if (err) reject(err);
-          else resolve(this.lastID);
+          if (err) {
+            console.error('데이터베이스 저장 오류:', err);
+            reject(err);
+          } else {
+            console.log('데이터베이스 저장 완료, ID:', this.lastID);
+            resolve(this.lastID);
+          }
         }
       );
     });
@@ -79,12 +117,18 @@ app.post('/api/words/search', async (req, res) => {
         'SELECT * FROM words WHERE id = ?',
         [result],
         (err, row) => {
-          if (err) reject(err);
-          else resolve(row);
+          if (err) {
+            console.error('저장된 단어 조회 오류:', err);
+            reject(err);
+          } else {
+            console.log('저장된 단어 조회 완료');
+            resolve(row);
+          }
         }
       );
     });
 
+    console.log('요청 처리 완료:', savedWord.word);
     res.json({
       id: savedWord.id,
       word: savedWord.word,
@@ -93,7 +137,12 @@ app.post('/api/words/search', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('단어 검색 오류:', error);
+    console.error('단어 검색 상세 오류:', {
+      message: error.message,
+      stack: error.stack,
+      word: word,
+      timestamp: new Date().toISOString()
+    });
     res.status(500).json({ error: '단어 검색 중 오류가 발생했습니다.' });
   }
 });

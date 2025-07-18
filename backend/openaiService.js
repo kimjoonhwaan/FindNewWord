@@ -8,6 +8,14 @@ const openai = new OpenAI({
 // 단어 의미를 가져오는 함수
 const getWordMeaning = async (word) => {
   try {
+    console.log('OpenAI 서비스 시작 - 단어:', word);
+    console.log('OpenAI API 키 상태:', process.env.OPENAI_API_KEY ? '설정됨' : '설정되지 않음');
+
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error('OpenAI API 키가 설정되지 않았습니다.');
+    }
+
+    console.log('OpenAI API 요청 생성 중...');
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -31,10 +39,30 @@ const getWordMeaning = async (word) => {
       temperature: 0.7
     });
 
+    console.log('OpenAI API 응답 받음 - 상태:', response.choices?.[0]?.message?.content ? '성공' : '실패');
+    console.log('응답 길이:', response.choices?.[0]?.message?.content?.length || 0);
+
     return response.choices[0].message.content;
   } catch (error) {
-    console.error('OpenAI API 오류:', error);
-    throw new Error('단어 의미를 가져오는 중 오류가 발생했습니다.');
+    console.error('OpenAI API 상세 오류:', {
+      message: error.message,
+      code: error.code,
+      type: error.type,
+      status: error.status,
+      word: word,
+      timestamp: new Date().toISOString()
+    });
+    
+    // 더 구체적인 에러 메시지 제공
+    if (error.code === 'invalid_api_key') {
+      throw new Error('OpenAI API 키가 유효하지 않습니다.');
+    } else if (error.code === 'insufficient_quota') {
+      throw new Error('OpenAI API 사용량이 초과되었습니다.');
+    } else if (error.code === 'rate_limit_exceeded') {
+      throw new Error('OpenAI API 호출 제한이 초과되었습니다.');
+    } else {
+      throw new Error('단어 의미를 가져오는 중 오류가 발생했습니다.');
+    }
   }
 };
 
