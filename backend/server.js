@@ -9,8 +9,23 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // 미들웨어 설정
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:3000',
+    'https://findnewwordfront-production.up.railway.app'
+  ],
+  credentials: true
+}));
 app.use(express.json());
+
+// 헬스 체크 엔드포인트
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    message: '서버가 정상적으로 작동 중입니다.',
+    timestamp: new Date().toISOString()
+  });
+});
 
 // 단어 검색 API
 app.post('/api/words/search', async (req, res) => {
