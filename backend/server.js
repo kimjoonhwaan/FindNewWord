@@ -23,7 +23,8 @@ app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     message: '서버가 정상적으로 작동 중입니다.',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    version: '1.0.1'
   });
 });
 
